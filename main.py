@@ -201,7 +201,7 @@ def main():
                         default='127.0.0.1', required=False,
                         help='Specify the IP of the interface to listen to')
     parser.add_argument('--port', dest='port', action='store', type=int,
-                        default=8080, required=False,
+                        default=8888, required=False,
                         help='Specify the port to listen to')
     parser.add_argument('--auth-key', dest='auth_key', action='store',
                         type=str, default=token_hex(32), required=False,
