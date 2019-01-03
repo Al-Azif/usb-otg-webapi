@@ -2,7 +2,7 @@ USB OTG via WebAPI
 ==================
 
 ## Purpose
-Cheap remote viewing/control of devices on which you cannot install remote control software but can use a USB keyboard.
+Cheap (<$50) remote viewing/control of devices on which you cannot install remote control software but can use a USB keyboard.
 
 ## My Primary Setup
 - PS4
@@ -13,7 +13,7 @@ Cheap remote viewing/control of devices on which you cannot install remote contr
 There is currently no public coldboot available to run your own code, meaning there is no screen streaming/control on boot
 
 ## Roadmap
-- [ ] Camera Stream (via ffmpeg, ffserve will be running on frontend)
+- [ ] Camera Stream (Find a better method/Tweak existing method)
 - [ ] Macro Support (Multiple commands contained in one neat command)
 - [ ] "On Boot" Support (Run a macro when power is detected on the system, or other external trigger)
 - [ ] UART Support
@@ -21,9 +21,3 @@ There is currently no public coldboot available to run your own code, meaning th
 - [ ] Secure login vs static auth-key
 - [ ] Single script setup
 - [ ] Documentation
-- [ ] Add CI
-- [ ] Tests
-- [ ] Make packages
-- [ ] Mobile Frontend
-- [ ] Desktop Frontend
-- [ ] Generalize to make more useful for other projects/use cases/hardware
