@@ -1,0 +1,13 @@
+[Unit]
+Description=USB OTG Driver
+Wants=multi-user.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/usb-otg-webapi
+ExecStart=/opt/usb-otg-webapi/usb-otg-driver.sh
+
+[Install]
+WantedBy=multi-user.target

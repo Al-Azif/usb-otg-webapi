@@ -1,0 +1,16 @@
+[Unit]
+Description=USB OTG WebAPI
+Wants=multi-user.target
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=10
+User=root
+Group=root
+WorkingDirectory=/opt/usb-otg-webapi
+ExecStart=/opt/usb-otg-webapi/main.py
+KillMode=process
+
+[Install]
+WantedBy=multi-user.target

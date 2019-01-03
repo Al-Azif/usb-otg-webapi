@@ -1,10 +1,19 @@
 #!/bin/bash
 
+# Get script directory as DIR. From https://stackoverflow.com/a/246128
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symlink
+  DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE" # if $SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
+done
+DIR="$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )"
+
 # Update and install dependencies
 apt-get update
 apt-get -y upgrade
 rpi-update
-apt-get -y install curl python3 nginx motion
+apt-get -y install python3 nginx motion
 
 # Make directory to store it all
 mkdir /opt/usb-otg-webapi
@@ -14,115 +23,41 @@ echo "dtoverlay=dwc2" | tee -a /boot/config.txt
 echo "dwc2" | tee -a /etc/modules
 echo "libcomposite" | tee -a /etc/modules
 
-cat << 'EOF' >> /opt/usb-otg-webapi/usb-otg-driver
-#!/bin/bash
+yes | cp -rf "${DIR}/usb-otg-driver.sh" /opt/usb-otg-webapi/usb-otg-driver.sh
 
-cd /sys/kernel/config/usb_gadget/
-mkdir -p miskatonic
-cd miskatonic
-echo 0x1d6b > idVendor # Linux Foundation
-echo 0x0104 > idProduct # Multifunction Composite Gadget
-echo 0x0100 > bcdDevice # v1.0.0
-echo 0x0200 > bcdUSB # USB2
-mkdir -p strings/0x409
-echo "0123456789abcdef" > strings/0x409/serialnumber
-echo "Miskatonic" > strings/0x409/manufacturer
-echo "USB OTG via WebAPI" > strings/0x409/product
-mkdir -p configs/c.1/strings/0x409
-echo "Config 1: ECM network" > configs/c.1/strings/0x409/configuration
-echo 250 > configs/c.1/MaxPower
-
-mkdir -p functions/hid.usb0
-echo 1 > functions/hid.usb0/protocol
-echo 1 > functions/hid.usb0/subclass
-echo 8 > functions/hid.usb0/report_length
-echo -ne \\x05\\x01\\x09\\x06\\xa1\\x01\\x05\\x07\\x19\\xe0\\x29\\xe7\\x15\\x00\\x25\\x01\\x75\\x01\\x95\\x08\\x81\\x02\\x95\\x01\\x75\\x08\\x81\\x03\\x95\\x05\\x75\\x01\\x05\\x08\\x19\\x01\\x29\\x05\\x91\\x02\\x95\\x01\\x75\\x03\\x91\\x03\\x95\\x06\\x75\\x08\\x15\\x00\\x25\\x65\\x05\\x07\\x19\\x00\\x29\\x65\\x81\\x00\\xc0 > functions/hid.usb0/report_desc
-ln -s functions/hid.usb0 configs/c.1/
-
-ls /sys/class/udc > UDC
-EOF
-
-chmod +x /opt/usb-otg-webapi/usb-otg-driver
+chmod +x /opt/usb-otg-webapi/usb-otg-driver.sh
 
 # Setup Python WebAPI
-curl -o /opt/usb-otg/webapi/main.py https://raw.githubusercontent.com/Al-Azif/usb-otg-webapi/master/main.py
-curl -o /opt/usb-otg/webapi/command_queue.py https://raw.githubusercontent.com/Al-Azif/usb-otg-webapi/master/command_queue.py
-curl -o /opt/usb-otg/webapi/keyboard_controller.py https://raw.githubusercontent.com/Al-Azif/usb-otg-webapi/master/keyboard_controller.py
+yes | cp -rf "${DIR}/main.py" /opt/usb-otg/webapi/main.py
+yes | cp -rf "${DIR}/command_queue.py" /opt/usb-otg/webapi/command_queue.py
+yes | cp -rf "${DIR}/keyboard_controller.py" /opt/usb-otg/webapi/keyboard_controller.py
 
 chmod +x /opt/usb-otg-webapi/main.py
 
 # Setup Camera
 echo "bcm2835-v4l2" | tee -a /etc/modules
 
-# TODO: Setup motion config
+sed /boot/config.txt -i -e "s/^startx/#startx/"
+sed /boot/config.txt -i -e "s/^fixup_file/#fixup_file/"
+set_config_var start_x 1 /boot/config.txt
+CUR_GPU_MEM=$(get_config_var gpu_mem /boot/config.txt)
+if [ -z "$CUR_GPU_MEM" ] || [ "$CUR_GPU_MEM" -lt 128 ]; then
+  set_config_var gpu_mem 128 /boot/config.txt
+fi
+
+yes | cp -rf "${DIR}/default-motion" /etc/default/motion
+yes | cp -rf "${DIR}/motion.conf" /etc/motion/motion.conf
 
 # Setup nginx
 systemctl stop nginx
 
-cat << 'EOF' > /etc/nginx/sites-available/default
-server {
-  server_tokens off;
-
-  charset UTF-8;
-
-  chunked_transfer_encoding on;
-
-  listen 80;
-
-  root /var/www;
-  index index.html;
-
-  location ~ ^/api(|/|/.*)+$ {
-    proxy_pass http://127.0.0.1:8888;
-  }
-
-  location = /stream {
-    proxy_pass http://127.0.0.1:8889;
-  }
-
-  location / {
-    try_files $uri $uri/ =404;
-  }
-}
-EOF
+yes | cp -rf "${DIR}/nginx-conf" /etc/nginx/sites-available/default
 
 systemctl start nginx
 
 # Setup systemd
-cat << 'EOF' >> /opt/usb-otg-webapi/usb-otg-driver.service
-[Unit]
-Description=USB OTG Driver
-Wants=multi-user.target
-
-[Service]
-Type=simple
-User=root
-Group=root
-WorkingDirectory=/opt/usb-otg-webapi
-ExecStart=/opt/usb-otg-webapi/usb-otg-driver
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-cat << 'EOF' >> /opt/usb-otg-webapi/usb-otg-webapi.service
-[Unit]
-Description=USB OTG WebAPI
-Wants=multi-user.target
-
-[Service]
-Type=simple
-Restart=always
-RestartSec=10
-User=root
-Group=root
-WorkingDirectory=/opt/usb-otg-webapi
-ExecStart=/opt/usb-otg-webapi/main.py
-KillMode=process
-
-[Install]
-WantedBy=multi-user.target
-EOF
+yes | cp -rf "${DIR}/usb-otg-driver.service" /opt/usb-otg-webapi/usb-otg-driver.service
+yes | cp -rf "${DIR}/usb-otg-webapi.service" /opt/usb-otg-webapi/usb-otg-webapi.service
 
 ln -f /opt/usb-otg-webapi/usb-otg-driver.service /lib/systemd/system/usb-otg-driver.service
 ln -f /opt/usb-otg-webapi/usb-otg-webapi.service /lib/systemd/system/usb-otg-webapi.service

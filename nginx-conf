@@ -1,0 +1,17 @@
+server {
+  server_tokens off;
+
+  charset UTF-8;
+
+  chunked_transfer_encoding on;
+
+  listen 80;
+
+  location ~ ^/api(|/|/.*)+$ {
+    proxy_pass http://127.0.0.1:8888;
+  }
+
+  location = /stream {
+    proxy_pass http://127.0.0.1:8889;
+  }
+}
