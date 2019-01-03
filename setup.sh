@@ -3,7 +3,8 @@
 # Update and install dependencies
 apt-get update
 apt-get -y upgrade
-apt-get -y install python3 nginx
+rpi-update
+apt-get -y install curl python3 nginx motion
 
 # Make directory to store it all
 mkdir /opt/usb-otg-webapi
@@ -44,14 +45,16 @@ EOF
 chmod +x /opt/usb-otg-webapi/usb-otg-driver
 
 # Setup Python WebAPI
-cat << 'EOF' >> /opt/usb-otg-webapi/main.py
-
-EOF
+curl -o /opt/usb-otg/webapi/main.py https://raw.githubusercontent.com/Al-Azif/usb-otg-webapi/master/main.py
+curl -o /opt/usb-otg/webapi/command_queue.py https://raw.githubusercontent.com/Al-Azif/usb-otg-webapi/master/command_queue.py
+curl -o /opt/usb-otg/webapi/keyboard_controller.py https://raw.githubusercontent.com/Al-Azif/usb-otg-webapi/master/keyboard_controller.py
 
 chmod +x /opt/usb-otg-webapi/main.py
 
 # Setup Camera
 echo "bcm2835-v4l2" | tee -a /etc/modules
+
+# TODO: Setup motion config
 
 # Setup nginx
 systemctl stop nginx
@@ -73,6 +76,10 @@ server {
     proxy_pass http://127.0.0.1:8888;
   }
 
+  location = /stream {
+    proxy_pass http://127.0.0.1:8889;
+  }
+
   location / {
     try_files $uri $uri/ =404;
   }
@@ -82,20 +89,17 @@ EOF
 systemctl start nginx
 
 # Setup systemd
-cat << 'EOF' >> /opt/usb-otg-webapi/usb_otg_driver.service
+cat << 'EOF' >> /opt/usb-otg-webapi/usb-otg-driver.service
 [Unit]
 Description=USB OTG Driver
 Wants=multi-user.target
 
 [Service]
 Type=simple
-Restart=always
-RestartSec=10
 User=root
 Group=root
 WorkingDirectory=/opt/usb-otg-webapi
 ExecStart=/opt/usb-otg-webapi/usb-otg-driver
-KillMode=process
 
 [Install]
 WantedBy=multi-user.target
@@ -113,7 +117,7 @@ RestartSec=10
 User=root
 Group=root
 WorkingDirectory=/opt/usb-otg-webapi
-ExecStart=/opt/usb-otg-webapi/main.py --host "127.0.0.1" --port 8080
+ExecStart=/opt/usb-otg-webapi/main.py
 KillMode=process
 
 [Install]
@@ -123,7 +127,6 @@ EOF
 ln -f /opt/usb-otg-webapi/usb-otg-driver.service /lib/systemd/system/usb-otg-driver.service
 ln -f /opt/usb-otg-webapi/usb-otg-webapi.service /lib/systemd/system/usb-otg-webapi.service
 
-systemctl enable motion
 systemctl enable usb-otg-driver
 systemctl enable usb-otg-webapi
 
